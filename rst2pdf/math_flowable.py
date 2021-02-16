@@ -176,7 +176,7 @@ class Math(Flowable):
                 fc = col_conv.to_rgb(self.color)
                 rgb_color = (int(fc[0] * 255), int(fc[1] * 255), int(fc[2] * 255))
                 draw.text(
-                    (ox * scale, (height - oy - fontsize + 4) * scale),
+                    (ox * scale, (height - oy - fontsize ) * scale),
                     chr(num),
                     font=font,
                     fill=rgb_color,
