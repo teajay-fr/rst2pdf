@@ -13,6 +13,7 @@ Ergo:
 import errno
 import subprocess
 import tempfile
+import os
 
 from docutils import nodes
 from docutils.parsers import rst
@@ -20,8 +21,6 @@ from docutils.parsers.rst import directives
 
 import rst2pdf.genelements as genelements
 from rst2pdf.image import MyImage
-from rst2pdf.styles import adjustUnits
-
 
 class plantuml(nodes.General, nodes.Element):
     pass
@@ -49,8 +48,8 @@ class UmlDirective(rst.Directive):
     option_spec = {
         'alt': directives.unchanged,
         'format': directives.unchanged,
-        'width': directives.length_or_unitless,
-        'height': directives.length_or_unitless,
+        'width': directives.length_or_percentage_or_unitless,
+        'height': directives.length_or_percentage_or_unitless,
     }
 
     def run(self):
@@ -71,10 +70,28 @@ class UMLHandler(genelements.NodeHandler, plantuml):
     """Class to handle UML nodes"""
 
     def gather_elements(self, client, node, style):
+
+        target = None
+        if isinstance(node.parent, nodes.reference):
+            target = node.parent.get('refuri', None)
+
         # Create image calling plantuml
         tfile = tempfile.NamedTemporaryFile(
             dir='.', delete=False, suffix='.' + node['format']
         )
+        sourcefile = node['uml']
+        isfile = False
+        if os.path.isfile(sourcefile):
+            isfile = True
+        else:
+            if node.source is None:
+                tmpsource = sourcefile
+            else:
+                tmpsource = os.path.join(os.path.dirname(node.source), sourcefile)
+            if os.path.isfile(tmpsource):
+                sourcefile = tmpsource
+                isfile = True
+
         args = 'plantuml -pipe -charset utf-8'
         if node['format'].lower() == 'svg':
             args += ' -tsvg'
@@ -92,21 +109,26 @@ class UMLHandler(genelements.NodeHandler, plantuml):
             raise PlantUmlError(
                 'plantuml command %r cannot be run' % self.builder.config.plantuml
             )
-        serr = p.communicate(node['uml'].encode('utf-8'))[1]
+        if isfile:
+            with open(sourcefile, "br") as myfile:
+                serr = p.communicate(myfile.read())[1]
+        else:
+            serr = p.communicate(sourcefile.encode('utf-8'))[1]
         if p.returncode != 0:
             raise PlantUmlError('error while running plantuml\n\n' + serr)
-
-        # Convert width and height if necessary
-        w = node['width']
-        if w is not None:
-            w = adjustUnits(w)
-
-        h = node['height']
-        if h is not None:
-            h = adjustUnits(h)
-
+        node['uri'] = tfile.name
+        w, h, kind = MyImage.size_for_node(node, client=client)
         # Add Image node with the right image
-        return [MyImage(tfile.name, client=client, width=w, height=h)]
+        return [
+            MyImage(
+                filename=tfile.name,
+                height=h,
+                width=w,
+                kind=kind,
+                client=client,
+                target=target,
+            )
+        ]
 
 
 directives.register_directive("uml", UmlDirective)

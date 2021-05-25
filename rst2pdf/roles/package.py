@@ -2,7 +2,7 @@
 
 from docutils import nodes
 from docutils.parsers.rst import roles
-import importlib_metadata
+import importlib.metadata
 import packaging.version
 
 
